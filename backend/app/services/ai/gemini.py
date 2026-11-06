@@ -1,5 +1,6 @@
 import logging
 from functools import lru_cache
+from threading import Lock
 
 from google import genai
 from google.genai import types
@@ -14,8 +15,11 @@ class AIUnavailableError(Exception):
     """Gemini could not produce a usable response. Callers fall back to non-AI behaviour."""
 
 
+_client_lock = Lock()
+
+
 @lru_cache
-def _client() -> genai.Client:
+def _build_client() -> genai.Client:
     settings = get_settings()
     return genai.Client(
         api_key=settings.gemini_api_key,
@@ -26,14 +30,22 @@ def _client() -> genai.Client:
     )
 
 
+def _client() -> genai.Client:
+    # A Client closes its HTTP connection when garbage-collected, so concurrent first calls
+    # must not build throwaway duplicates while other threads are still using them.
+    with _client_lock:
+        return _build_client()
+
+
 def generate_structured[T: BaseModel](prompt: str, schema: type[T], *, system_instruction: str) -> T:
     """Ask Gemini for JSON matching `schema` and return it parsed."""
     settings = get_settings()
     if not settings.ai_enabled:
         raise AIUnavailableError("GEMINI_API_KEY is not configured")
 
+    client = _client()
     try:
-        response = _client().models.generate_content(
+        response = client.models.generate_content(
             model=settings.gemini_model,
             contents=prompt,
             config=types.GenerateContentConfig(
