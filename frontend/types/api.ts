@@ -2,6 +2,8 @@ export type Difficulty = "Easy" | "Medium" | "Hard";
 export type DifficultyFilter = Difficulty | "Mixed";
 export type AnswerOption = "A" | "B" | "C" | "D";
 export type SessionStatus = "in_progress" | "completed";
+export type QuestionSource = "ai" | "mixed" | "bank";
+export type EvaluationSource = "ai" | "rule_based";
 
 export const ANSWER_OPTIONS: AnswerOption[] = ["A", "B", "C", "D"];
 export const DIFFICULTIES: Difficulty[] = ["Easy", "Medium", "Hard"];
@@ -10,6 +12,7 @@ export interface Health {
   status: "ok" | "degraded";
   database: string;
   environment: string;
+  ai: "enabled" | "disabled";
 }
 
 export interface Subject {
@@ -58,6 +61,7 @@ export interface InterviewSession {
   difficulty: DifficultyFilter;
   total_questions: number;
   status: SessionStatus;
+  question_source: QuestionSource;
   created_at: string;
   submitted_at: string | null;
   questions: InterviewQuestion[];
@@ -105,6 +109,7 @@ export interface ReviewItem {
   correct_answer: AnswerOption;
   is_correct: boolean;
   explanation: string;
+  ai_feedback: string | null;
 }
 
 export interface InterviewReview {
@@ -114,4 +119,20 @@ export interface InterviewReview {
   correct_answers: number;
   percentage: number;
   items: ReviewItem[];
+}
+
+export interface WeakArea {
+  subject: string;
+  topic: string;
+  advice: string;
+}
+
+export interface InterviewEvaluation {
+  session_id: string;
+  source: EvaluationSource;
+  summary: string;
+  strengths: string[];
+  weak_areas: WeakArea[];
+  recommendations: string[];
+  question_feedback: { question_id: number; feedback: string }[];
 }

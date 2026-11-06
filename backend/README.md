@@ -2,6 +2,8 @@
 
 FastAPI + SQLAlchemy + SQLite REST API for the AI Interview Coach MCQ practice platform.
 
+Gemini (`gemini-3.1-flash-lite`, via the `google-genai` SDK) writes the questions for each interview and a personal coach report after submission. Scoring is always exact. If no `GEMINI_API_KEY` is set, or Gemini fails, the API falls back to the bundled 108-question bank and a rule-based report.
+
 ## Setup
 
 ```bash
@@ -28,6 +30,11 @@ Run tests with `pytest`.
 | `DATABASE_URL` | `sqlite:///./data/app.db` | SQLAlchemy database URL |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated allowed frontend origins |
 | `CORS_ORIGIN_REGEX` | unset | Optional regex for extra origins (e.g. Vercel previews) |
+| `GEMINI_API_KEY` | unset | Gemini API key. Unset disables AI generation and evaluation |
+| `GEMINI_MODEL` | `gemini-3.1-flash-lite` | Gemini model ID |
+| `AI_TIMEOUT_SECONDS` | `30` | Per-request timeout for Gemini calls |
+
+Tests never call Gemini: `tests/conftest.py` clears the key and the AI tests use a fake client.
 
 ## Project structure
 
@@ -38,9 +45,11 @@ app/
 ├── core/                config, enums, exception handlers
 ├── models/              SQLAlchemy models
 ├── schemas/             Pydantic request/response models
-├── services/            question, interview, and scoring logic
+├── services/            question, interview, scoring, and evaluation logic
+│   └── ai/              Gemini client, question generator, coach-report evaluator
 └── db/
     ├── database.py      Engine, session factory, get_db dependency
+    ├── migrations.py    Adds columns introduced after the first release
     ├── seed.py          Validates and upserts the question bank
     └── data/            subjects.json and questions.json (single source of questions)
 ```
@@ -71,8 +80,10 @@ Correct answers and explanations are only returned by `/submit`, `/results`, and
 ### `GET /api/health`
 
 ```json
-{ "status": "ok", "database": "ok", "environment": "development" }
+{ "status": "ok", "database": "ok", "environment": "development", "ai": "enabled" }
 ```
+
+`ai` is `enabled` when a Gemini key is configured. It does not call Gemini.
 
 Returns 503 with `"status": "degraded"` if the database is unreachable.
 
@@ -144,7 +155,7 @@ Request:
 - `num_questions`: 1-50, default 10. If fewer questions match the filters, the session uses all of them (`total_questions` reflects the real count).
 - `difficulty`: `Easy`, `Medium`, `Hard`, or `Mixed` (default).
 
-Questions are picked randomly and spread evenly across the selected subjects.
+Questions are spread evenly across the selected subjects. With AI enabled, Gemini writes them (one request per subject, up to 10 questions per request, run in parallel). Invalid items (duplicate options, wrong difficulty, overlong fields) are dropped, the four options are shuffled server-side, and any shortfall is filled from the bank. `question_source` is `ai`, `mixed`, or `bank`. Without AI, questions are picked randomly from the bank. Subject counts from `/api/subjects` always describe the bank only.
 
 Response:
 
@@ -156,6 +167,7 @@ Response:
   "difficulty": "Mixed",
   "total_questions": 10,
   "status": "in_progress",
+  "question_source": "ai",
   "created_at": "2026-11-06T16:20:00Z",
   "submitted_at": null,
   "questions": [
@@ -245,12 +257,31 @@ Returns `InterviewResult`. 409 if the interview has not been submitted, 404 if u
       "selected_answer": "B",
       "correct_answer": "B",
       "is_correct": true,
-      "explanation": "…"
+      "explanation": "…",
+      "ai_feedback": null
     }
   ]
 }
 ```
 
+`ai_feedback` holds the coach's note on why a wrong pick was wrong, once the evaluation below has been generated.
+
+### `GET /api/interviews/{id}/evaluation`
+
+Coach report for a submitted interview. 409 if not submitted, 404 if unknown. The first call asks Gemini and caches the result on the session. If Gemini is unavailable it returns a rule-based report (`"source": "rule_based"`) that is not cached, so a later call retries Gemini.
+
+```json
+{
+  "session_id": "6f1c2a8e-…",
+  "source": "ai",
+  "summary": "Solid grasp of Python basics, but graph traversal tripped you up.",
+  "strengths": ["Python generators and iteration"],
+  "weak_areas": [{ "subject": "DSA", "topic": "Graphs", "advice": "Practise BFS versus DFS on small examples." }],
+  "recommendations": ["Implement BFS and DFS from scratch.", "Retry a DSA-only round."],
+  "question_feedback": [{ "question_id": 1000004, "feedback": "A queue gives BFS order, not DFS." }]
+}
+```
+
 ## Deployment (Render)
 
-Configured by `render.yaml` at the repo root (root directory `backend`, free plan). The free plan's filesystem is ephemeral: questions are re-seeded on every boot, but interview sessions are lost on restart or redeploy. For durable sessions, attach a persistent disk and set `DATABASE_URL=sqlite:////var/data/app.db`, or migrate to PostgreSQL.
+Configured by `render.yaml` at the repo root (root directory `backend`, free plan). Set `GEMINI_API_KEY` as a secret environment variable on the service; `GEMINI_MODEL` defaults to `gemini-3.1-flash-lite`. The free plan's filesystem is ephemeral: questions are re-seeded on every boot, but interview sessions are lost on restart or redeploy. For durable sessions, attach a persistent disk and set `DATABASE_URL=sqlite:////var/data/app.db`, or migrate to PostgreSQL.

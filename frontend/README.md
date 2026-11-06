@@ -16,6 +16,8 @@ npm run dev
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Base URL of the FastAPI backend, e.g. `http://localhost:8000` |
 
+This is the only frontend variable. The Gemini key lives on the backend only; never add it here, since `NEXT_PUBLIC_` values are shipped to the browser.
+
 See [../backend/README.md](../backend/README.md) for the API reference.
 
 ## Routes
@@ -25,12 +27,12 @@ See [../backend/README.md](../backend/README.md) for the API reference.
 | `/` | Landing page: hero, live subject grid, how it works, quick start |
 | `/user-details` | Setup step 1: candidate name |
 | `/subjects` | Setup step 2: pick one or more subjects |
-| `/configure` | Setup step 3: question count and difficulty, then start the interview |
-| `/interview/[id]` | One question at a time, navigator, submit confirmation |
-| `/results/[id]` | Score ring, totals, per-subject breakdown, retry |
-| `/review/[id]` | Every question with your answer, the correct answer, and the explanation |
+| `/configure` | Setup step 3: question count and difficulty, then start the interview (Gemini generates the questions) |
+| `/interview/[id]` | One question at a time, navigator, submit confirmation, AI or curated source badge |
+| `/results/[id]` | Score ring, totals, per-subject breakdown, AI coach report, retry |
+| `/review/[id]` | Every question with your answer, the correct answer, the explanation, and a coach note on wrong answers |
 
-The setup draft (name, subjects, count, difficulty) and in-progress answers are kept in `localStorage`, so a refresh doesn't lose progress. The header status pill and the cold-start banner reflect the real `GET /api/health` result.
+The setup draft (name, subjects, count, difficulty) and in-progress answers are kept in `localStorage`, so a refresh doesn't lose progress. The header status pill and the cold-start banner reflect the real `GET /api/health` result, which also reports whether AI is enabled (`useAIEnabled()`). When AI is off or Gemini fails, the UI labels questions as coming from the curated bank and the coach report as rule-based.
 
 ## Structure
 
@@ -44,8 +46,8 @@ components/
   landing/           landing page sections
   setup/             the three setup steps
   subjects/          SubjectCard, SubjectCategorySection
-  interview/         OptionList, QuestionCard, QuestionNavigator, SubmitConfirmModal, InterviewView
-  results/           ScoreRing, StatTile, SubjectBreakdownList, ReviewItemCard, ResultsView, ReviewView
+  interview/         OptionList, QuestionCard, QuestionNavigator, QuestionSourceBadge, SubmitConfirmModal, InterviewView
+  results/           ScoreRing, StatTile, SubjectBreakdownList, AICoachReport, ReviewItemCard, ResultsView, ReviewView
 hooks/               useAsync, useSubjects, useHealth, useInterviewDraft, useInterviewAnswers
 services/api.ts      typed fetch client for the backend
 types/api.ts         TypeScript mirrors of the backend schemas

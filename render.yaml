@@ -19,3 +19,8 @@ services:
       # Optional regex for Vercel preview deployments, e.g. https://octeveaiint-.*\.vercel\.app
       - key: CORS_ORIGIN_REGEX
         sync: false
+      # Gemini API key (secret). Without it the API serves bank questions and rule-based feedback.
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite

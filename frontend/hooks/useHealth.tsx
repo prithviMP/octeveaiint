@@ -11,14 +11,20 @@ const RETRY_MS = 4000;
 const OFFLINE_RETRY_MS = 15_000;
 const ATTEMPTS_BEFORE_OFFLINE = 5;
 
-const HealthContext = createContext<HealthStatus>("checking");
+interface HealthState {
+  status: HealthStatus;
+  /** Whether the backend has a Gemini key configured. `null` until the first successful health check. */
+  aiEnabled: boolean | null;
+}
+
+const HealthContext = createContext<HealthState>({ status: "checking", aiEnabled: null });
 
 /**
  * Polls the backend health endpoint until it responds. Render's free tier sleeps when idle,
  * so the first request can take 10-20 seconds.
  */
 export function HealthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<HealthStatus>("checking");
+  const [state, setState] = useState<HealthState>({ status: "checking", aiEnabled: null });
 
   useEffect(() => {
     let cancelled = false;
@@ -27,13 +33,14 @@ export function HealthProvider({ children }: { children: ReactNode }) {
 
     const check = async () => {
       const slowTimer = setTimeout(() => {
-        if (!cancelled) setStatus((current) => (current === "checking" ? "waking" : current));
+        if (!cancelled)
+          setState((current) => (current.status === "checking" ? { ...current, status: "waking" } : current));
       }, SLOW_RESPONSE_MS);
       try {
         const health = await api.health(AbortSignal.timeout(REQUEST_TIMEOUT_MS));
         if (cancelled) return;
         if (health.status === "ok") {
-          setStatus("ready");
+          setState({ status: "ready", aiEnabled: health.ai === "enabled" });
           return;
         }
         throw new Error("degraded");
@@ -41,7 +48,7 @@ export function HealthProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
         attempts += 1;
         const offline = attempts >= ATTEMPTS_BEFORE_OFFLINE;
-        setStatus(offline ? "offline" : "waking");
+        setState((current) => ({ ...current, status: offline ? "offline" : "waking" }));
         retryTimer = setTimeout(check, offline ? OFFLINE_RETRY_MS : RETRY_MS);
       } finally {
         clearTimeout(slowTimer);
@@ -55,9 +62,13 @@ export function HealthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  return <HealthContext value={status}>{children}</HealthContext>;
+  return <HealthContext value={state}>{children}</HealthContext>;
 }
 
 export function useHealth(): HealthStatus {
-  return useContext(HealthContext);
+  return useContext(HealthContext).status;
+}
+
+export function useAIEnabled(): boolean | null {
+  return useContext(HealthContext).aiEnabled;
 }

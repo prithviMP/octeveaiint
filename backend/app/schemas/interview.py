@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
-from app.core.enums import AnswerOption, DifficultyFilter, SessionStatus
+from app.core.enums import AnswerOption, DifficultyFilter, EvaluationSource, SessionQuestionSource, SessionStatus
 from app.schemas.common import UTCDateTime
 from app.schemas.question import QuestionPublic
 
@@ -36,6 +36,7 @@ class InterviewSessionOut(BaseModel):
     difficulty: DifficultyFilter
     total_questions: int
     status: SessionStatus
+    question_source: SessionQuestionSource
     created_at: UTCDateTime
     submitted_at: UTCDateTime | None
     questions: list[InterviewQuestion]
@@ -87,6 +88,7 @@ class ReviewItem(BaseModel):
     correct_answer: AnswerOption
     is_correct: bool
     explanation: str
+    ai_feedback: str | None = None
 
 
 class InterviewReview(BaseModel):
@@ -96,3 +98,24 @@ class InterviewReview(BaseModel):
     correct_answers: int
     percentage: float
     items: list[ReviewItem]
+
+
+class WeakArea(BaseModel):
+    subject: str
+    topic: str
+    advice: str
+
+
+class QuestionFeedback(BaseModel):
+    question_id: int
+    feedback: str
+
+
+class InterviewEvaluation(BaseModel):
+    session_id: str
+    source: EvaluationSource
+    summary: str
+    strengths: list[str]
+    weak_areas: list[WeakArea]
+    recommendations: list[str]
+    question_feedback: list[QuestionFeedback]

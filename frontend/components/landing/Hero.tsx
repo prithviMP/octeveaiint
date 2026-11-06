@@ -29,8 +29,8 @@ export function Hero() {
           .
         </h1>
         <p className="max-w-lg text-base leading-relaxed text-slate-600">
-          Curated multiple-choice questions across CS fundamentals, system design, and modern frameworks. Get an
-          instant score and a detailed explanation for every answer, with no sign-up.
+          Fresh multiple-choice questions written by Gemini across CS fundamentals, system design, and modern
+          frameworks. Get an instant score and a personal coach report on what to study next, with no sign-up.
         </p>
         <div className="flex flex-wrap items-center gap-3">
           <Button href="/user-details" size="lg" trailingIcon={ArrowRight}>

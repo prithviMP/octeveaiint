@@ -4,7 +4,7 @@ from collections import defaultdict
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.core.enums import Difficulty, DifficultyFilter
+from app.core.enums import Difficulty, DifficultyFilter, QuestionSource
 from app.core.exceptions import InvalidRequestError
 from app.models import Question, Subject
 from app.schemas.question import QuestionList, QuestionPublic, SubjectCategory, SubjectList, SubjectOut
@@ -15,7 +15,9 @@ def list_subjects(db: Session) -> SubjectList:
 
     counts: dict[str, dict[str, int]] = defaultdict(lambda: {d.value: 0 for d in Difficulty})
     rows = db.execute(
-        select(Question.subject, Question.difficulty, func.count()).group_by(Question.subject, Question.difficulty)
+        select(Question.subject, Question.difficulty, func.count())
+        .where(Question.source == QuestionSource.BANK)
+        .group_by(Question.subject, Question.difficulty)
     ).all()
     for subject_code, difficulty, count in rows:
         counts[subject_code][difficulty] = count
@@ -52,7 +54,7 @@ def validate_subject_codes(db: Session, codes: list[str]) -> list[str]:
 
 
 def _filtered_query(subjects: list[str], difficulty: DifficultyFilter):
-    query = select(Question).where(Question.subject.in_(subjects))
+    query = select(Question).where(Question.subject.in_(subjects), Question.source == QuestionSource.BANK)
     if difficulty != DifficultyFilter.MIXED:
         query = query.where(Question.difficulty == difficulty.value)
     return query
@@ -68,18 +70,29 @@ def list_public_questions(
     return QuestionList(total=len(questions), questions=[QuestionPublic.from_model(q) for q in questions])
 
 
+def spread_counts(subjects: list[str], count: int, rng: random.Random | None = None) -> dict[str, int]:
+    """Split `count` as evenly as possible across subjects; the remainder goes to randomly chosen subjects."""
+    rng = rng or random.Random()
+    base, remainder = divmod(count, len(subjects))
+    extra = set(rng.sample(subjects, remainder))
+    return {code: base + (1 if code in extra else 0) for code in subjects}
+
+
 def select_questions(
     db: Session,
     subjects: list[str],
     difficulty: DifficultyFilter,
     count: int,
     rng: random.Random | None = None,
+    exclude_ids: set[int] | None = None,
 ) -> list[Question]:
-    """Randomly pick up to `count` questions, spread as evenly as possible across subjects."""
+    """Randomly pick up to `count` bank questions, spread as evenly as possible across subjects."""
     rng = rng or random.Random()
 
     pools: dict[str, list[Question]] = defaultdict(list)
     for question in db.scalars(_filtered_query(subjects, difficulty)).all():
+        if exclude_ids and question.id in exclude_ids:
+            continue
         pools[question.subject].append(question)
 
     if not pools:

@@ -1,11 +1,15 @@
+import random
 from datetime import UTC, datetime
+from threading import Lock
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.enums import SessionStatus
+from app.core.config import get_settings
+from app.core.enums import DifficultyFilter, SessionQuestionSource, SessionStatus
 from app.core.exceptions import ConflictError, InvalidRequestError, NotFoundError
-from app.models import InterviewResponse, InterviewSession
+from app.models import InterviewResponse, InterviewSession, Question, Subject
+from app.models.question import AI_QUESTION_ID_START
 from app.schemas.interview import (
     InterviewCreate,
     InterviewQuestion,
@@ -16,11 +20,55 @@ from app.schemas.interview import (
     ReviewItem,
 )
 from app.services import question_service, scoring_service
+from app.services.ai import question_generator
+from app.services.ai.question_generator import SubjectRequest
+
+
+_ai_id_lock = Lock()
+
+
+def _pick_questions(
+    db: Session, subjects: list[str], difficulty: DifficultyFilter, count: int
+) -> tuple[list[Question], SessionQuestionSource]:
+    """Generate questions with Gemini and top up any shortfall from the bank."""
+    if not get_settings().ai_enabled:
+        return question_service.select_questions(db, subjects, difficulty, count), SessionQuestionSource.BANK
+
+    rng = random.Random()
+    names = dict(db.execute(select(Subject.code, Subject.name).where(Subject.code.in_(subjects))).all())
+    plan = question_service.spread_counts(subjects, count, rng)
+    requests = [SubjectRequest(code, names.get(code, code), n) for code, n in plan.items() if n > 0]
+    generated = question_generator.generate_questions(requests, difficulty, rng)
+
+    ai_questions = [question for items in generated.values() for question in items]
+    if not ai_questions:
+        return question_service.select_questions(db, subjects, difficulty, count, rng), SessionQuestionSource.BANK
+
+    bank_questions: list[Question] = []
+    for code, wanted in plan.items():
+        shortfall = wanted - len(generated.get(code, []))
+        if shortfall > 0:
+            try:
+                bank_questions += question_service.select_questions(db, [code], difficulty, shortfall, rng)
+            except InvalidRequestError:
+                pass
+    remaining = count - len(ai_questions) - len(bank_questions)
+    if remaining > 0:
+        try:
+            bank_questions += question_service.select_questions(
+                db, subjects, difficulty, remaining, rng, exclude_ids={q.id for q in bank_questions}
+            )
+        except InvalidRequestError:
+            pass
+
+    questions = ai_questions + bank_questions
+    rng.shuffle(questions)
+    return questions, SessionQuestionSource.MIXED if bank_questions else SessionQuestionSource.AI
 
 
 def create_interview(db: Session, payload: InterviewCreate) -> InterviewSession:
     subjects = question_service.validate_subject_codes(db, payload.subjects)
-    questions = question_service.select_questions(db, subjects, payload.difficulty, payload.num_questions)
+    questions, source = _pick_questions(db, subjects, payload.difficulty, payload.num_questions)
 
     session = InterviewSession(
         student_name=payload.student_name,
@@ -28,13 +76,21 @@ def create_interview(db: Session, payload: InterviewCreate) -> InterviewSession:
         difficulty=payload.difficulty.value,
         total_questions=len(questions),
         status=SessionStatus.IN_PROGRESS.value,
+        question_source=source.value,
     )
     session.responses = [
-        InterviewResponse(question_id=question.id, position=index, question=question)
-        for index, question in enumerate(questions, start=1)
+        InterviewResponse(position=index, question=question) for index, question in enumerate(questions, start=1)
     ]
-    db.add(session)
-    db.commit()
+
+    with _ai_id_lock:
+        new_questions = [question for question in questions if question.id is None]
+        if new_questions:
+            current = db.scalar(select(func.max(Question.id)).where(Question.id >= AI_QUESTION_ID_START))
+            next_id = (current or AI_QUESTION_ID_START - 1) + 1
+            for offset, question in enumerate(new_questions):
+                question.id = next_id + offset
+        db.add(session)
+        db.commit()
     return session
 
 
@@ -58,6 +114,7 @@ def to_session_out(session: InterviewSession) -> InterviewSessionOut:
         difficulty=session.difficulty,
         total_questions=session.total_questions,
         status=session.status,
+        question_source=session.question_source,
         created_at=session.created_at,
         submitted_at=session.submitted_at,
         questions=[
@@ -130,7 +187,7 @@ def submit_interview(db: Session, session_id: str, payload: InterviewSubmit) -> 
     return scoring_service.build_result(session)
 
 
-def _get_completed(db: Session, session_id: str) -> InterviewSession:
+def get_completed_interview(db: Session, session_id: str) -> InterviewSession:
     session = get_interview(db, session_id)
     if session.status != SessionStatus.COMPLETED:
         raise ConflictError("Interview has not been submitted yet")
@@ -138,11 +195,14 @@ def _get_completed(db: Session, session_id: str) -> InterviewSession:
 
 
 def get_results(db: Session, session_id: str) -> InterviewResult:
-    return scoring_service.build_result(_get_completed(db, session_id))
+    return scoring_service.build_result(get_completed_interview(db, session_id))
 
 
 def get_review(db: Session, session_id: str) -> InterviewReview:
-    session = _get_completed(db, session_id)
+    session = get_completed_interview(db, session_id)
+    feedback = {
+        item["question_id"]: item["feedback"] for item in (session.ai_evaluation or {}).get("question_feedback", [])
+    }
     items = [
         ReviewItem(
             position=r.position,
@@ -156,6 +216,7 @@ def get_review(db: Session, session_id: str) -> InterviewReview:
             correct_answer=r.question.correct_answer,
             is_correct=bool(r.is_correct),
             explanation=r.question.explanation,
+            ai_feedback=feedback.get(r.question.id),
         )
         for r in session.responses
     ]

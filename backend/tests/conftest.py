@@ -1,5 +1,7 @@
 import os
+import re
 import tempfile
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -7,6 +9,8 @@ from pathlib import Path
 _TMP_DIR = Path(tempfile.mkdtemp(prefix="aic-tests-"))
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DIR / 'global.db'}"
 os.environ["CORS_ORIGINS"] = "http://localhost:3000"
+# Never call the real Gemini API from tests, even if backend/.env holds a key.
+os.environ["GEMINI_API_KEY"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -54,3 +58,79 @@ def answer_key(db: Session) -> dict[int, str]:
 
 def wrong_option(correct: str) -> str:
     return next(option for option in "ABCD" if option != correct)
+
+
+class FakeGemini:
+    """Stands in for `gemini.generate_structured`. Builds valid output from the prompt unless told otherwise."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+        self.fail_questions = False
+        self.fail_evaluation = False
+        self.question_difficulty = "Medium"
+        self.bad_every: int | None = None
+
+    def __call__(self, prompt: str, schema: type, *, system_instruction: str):
+        from app.services.ai.evaluator import EvaluationDraft
+        from app.services.ai.gemini import AIUnavailableError
+        from app.services.ai.question_generator import GeneratedQuestionSet
+
+        self.calls.append(schema.__name__)
+        if schema is GeneratedQuestionSet:
+            if self.fail_questions:
+                raise AIUnavailableError("simulated outage")
+            return self._questions(prompt)
+        if schema is EvaluationDraft:
+            if self.fail_evaluation:
+                raise AIUnavailableError("simulated outage")
+            return self._evaluation(prompt)
+        raise AssertionError(f"unexpected schema {schema}")
+
+    def _questions(self, prompt: str):
+        from app.services.ai.question_generator import GeneratedQuestionSet
+
+        count = int(re.search(r"Write (\d+) ", prompt).group(1))
+        subject = re.search(r"\((\w+)\)", prompt).group(1)
+        items = []
+        for i in range(count):
+            options = [f"{subject} right {i}", f"{subject} wrong a {i}", f"{subject} wrong b {i}", f"{subject} wrong c {i}"]
+            if self.bad_every and i % self.bad_every == 0:
+                options[1] = options[0]
+            items.append(
+                {
+                    "topic": f"Topic {i}",
+                    "difficulty": self.question_difficulty,
+                    "question": f"Generated {subject} question {i} {uuid.uuid4().hex[:6]}?",
+                    "options": options,
+                    "correct_answer": "A",
+                    "explanation": "Because it is right.",
+                }
+            )
+        return GeneratedQuestionSet.model_validate({"questions": items})
+
+    def _evaluation(self, prompt: str):
+        from app.services.ai.evaluator import EvaluationDraft
+
+        wrong = [int(n) for n in re.findall(r"^Q(\d+) .*$\n.*\n.*\(incorrect\)", prompt, flags=re.MULTILINE)]
+        subject = re.search(r"^Q\d+ \[(\w+) /", prompt, flags=re.MULTILINE).group(1)
+        return EvaluationDraft.model_validate(
+            {
+                "summary": "You did reasonably well.",
+                "strengths": ["Fundamentals", "Fundamentals", ""],
+                "weak_areas": [{"subject": subject, "topic": "Graphs", "advice": "Practise BFS."}],
+                "recommendations": ["Revise graphs."],
+                "question_feedback": [{"position": n, "feedback": f"Q{n} was wrong because..."} for n in wrong]
+                + [{"position": 999, "feedback": "ignored"}],
+            }
+        )
+
+
+@pytest.fixture
+def fake_gemini(monkeypatch: pytest.MonkeyPatch) -> FakeGemini:
+    from app.core.config import get_settings
+    from app.services.ai import gemini
+
+    fake = FakeGemini()
+    monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
+    monkeypatch.setattr(gemini, "generate_structured", fake)
+    return fake

@@ -22,7 +22,7 @@ const STEPS: { title: string; description: string; icon: LucideIcon }[] = [
   },
   {
     title: "Review and learn",
-    description: "See your score, a per-subject breakdown, and an explanation for every question.",
+    description: "See your score, a per-subject breakdown, and AI coach feedback on every mistake.",
     icon: BookOpen,
   },
 ];

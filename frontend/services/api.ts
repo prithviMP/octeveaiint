@@ -2,6 +2,7 @@ import type {
   AnswerIn,
   Health,
   InterviewCreate,
+  InterviewEvaluation,
   InterviewResult,
   InterviewReview,
   InterviewSession,
@@ -81,4 +82,6 @@ export const api = {
     request<InterviewResult>(`/interviews/${encodeURIComponent(id)}/results`, { signal }),
   getReview: (id: string, signal?: AbortSignal) =>
     request<InterviewReview>(`/interviews/${encodeURIComponent(id)}/review`, { signal }),
+  getEvaluation: (id: string, signal?: AbortSignal) =>
+    request<InterviewEvaluation>(`/interviews/${encodeURIComponent(id)}/evaluation`, { signal }),
 };

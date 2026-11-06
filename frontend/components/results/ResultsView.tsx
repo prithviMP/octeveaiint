@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { SessionErrorState, SessionSkeleton } from "@/components/interview/SessionStates";
+import { AICoachReport } from "@/components/results/AICoachReport";
 import { PerformanceBadge } from "@/components/results/PerformanceBadge";
 import { ScoreRing } from "@/components/results/ScoreRing";
 import { StatTile } from "@/components/results/StatTile";
@@ -96,6 +97,8 @@ function ResultsPanel({ result }: { result: InterviewResult }) {
           </GlassPanel>
         </div>
       </div>
+
+      <AICoachReport sessionId={result.session_id} />
 
       <div className="flex flex-col gap-3 border-t border-slate-200/60 pt-6 sm:flex-row sm:items-center sm:justify-between">
         <Button variant="text" href="/" icon={House}>

@@ -9,12 +9,14 @@ from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
 from app.db.database import Base, SessionLocal, engine
+from app.db.migrations import apply_migrations
 from app.db.seed import seed_database
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     Base.metadata.create_all(bind=engine)
+    apply_migrations(engine)
     with SessionLocal() as db:
         seed_database(db)
     yield

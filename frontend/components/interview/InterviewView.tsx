@@ -11,9 +11,11 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { OptionList } from "@/components/interview/OptionRow";
 import { QuestionCard } from "@/components/interview/QuestionCard";
 import { QuestionNavigator } from "@/components/interview/QuestionNavigator";
+import { QuestionSourceBadge, QuestionSourceNote } from "@/components/interview/QuestionSourceBadge";
 import { SessionErrorState, SessionSkeleton } from "@/components/interview/SessionStates";
 import { SubmitConfirmModal } from "@/components/interview/SubmitConfirmModal";
 import { useAsync } from "@/hooks/useAsync";
+import { useAIEnabled } from "@/hooks/useHealth";
 import { useInterviewAnswers } from "@/hooks/useInterviewAnswers";
 import { api } from "@/services/api";
 import { ANSWER_OPTIONS, type InterviewSession } from "@/types/api";
@@ -35,6 +37,7 @@ export function InterviewView() {
 function InterviewSessionPanel({ session }: { session: InterviewSession }) {
   const router = useRouter();
   const { answers, select, clear } = useInterviewAnswers(session.id);
+  const aiEnabled = useAIEnabled();
   const [index, setIndex] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -112,12 +115,14 @@ function InterviewSessionPanel({ session }: { session: InterviewSession }) {
               </Badge>
             ))}
             <Badge mono>{session.difficulty}</Badge>
+            <QuestionSourceBadge source={session.question_source} />
           </div>
           <span className="font-mono text-xs text-slate-500">
             {answeredCount} of {total} answered
           </span>
         </div>
         <ProgressBar value={answeredCount / total} label="Questions answered" />
+        {aiEnabled && <QuestionSourceNote source={session.question_source} />}
       </GlassPanel>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">

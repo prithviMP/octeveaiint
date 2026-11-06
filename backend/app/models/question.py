@@ -1,7 +1,11 @@
 from sqlalchemy import ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.enums import QuestionSource
 from app.db.database import Base
+
+# Generated questions get ids from here up so re-seeding the bank (ids from questions.json) never collides.
+AI_QUESTION_ID_START = 1_000_000
 
 
 class Question(Base):
@@ -18,6 +22,9 @@ class Question(Base):
     option_d: Mapped[str] = mapped_column(String(500), nullable=False)
     correct_answer: Mapped[str] = mapped_column(String(1), nullable=False)
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(10), index=True, nullable=False, default=QuestionSource.BANK.value, server_default=QuestionSource.BANK.value
+    )
 
     @property
     def options(self) -> list[str]:

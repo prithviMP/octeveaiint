@@ -1,4 +1,4 @@
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { GlassPanel } from "@/components/ui/GlassPanel";
 import { OptionList, type OptionState } from "@/components/interview/OptionRow";
@@ -46,6 +46,17 @@ export function ReviewItemCard({ item, total }: { item: ReviewItem; total: numbe
             <p className="text-sm leading-relaxed text-slate-700">{item.explanation}</p>
           </div>
         </div>
+        {!item.is_correct && item.ai_feedback && (
+          <div className="flex gap-3 rounded-2xl border border-indigo-500/15 bg-indigo-500/5 p-4">
+            <Sparkles size={16} className="mt-0.5 shrink-0 text-indigo-500" aria-hidden />
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[10px] font-semibold tracking-wider text-indigo-600 uppercase">
+                Coach note
+              </span>
+              <p className="text-sm leading-relaxed text-slate-700">{item.ai_feedback}</p>
+            </div>
+          </div>
+        )}
       </QuestionCard>
     </GlassPanel>
   );

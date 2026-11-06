@@ -4,12 +4,13 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.schemas.interview import (
     InterviewCreate,
+    InterviewEvaluation,
     InterviewResult,
     InterviewReview,
     InterviewSessionOut,
     InterviewSubmit,
 )
-from app.services import interview_service
+from app.services import evaluation_service, interview_service
 
 router = APIRouter(prefix="/interviews", tags=["interviews"])
 
@@ -68,3 +69,13 @@ def get_results(session_id: str, db: Session = Depends(get_db)) -> InterviewResu
 )
 def get_review(session_id: str, db: Session = Depends(get_db)) -> InterviewReview:
     return interview_service.get_review(db, session_id)
+
+
+@router.get(
+    "/{session_id}/evaluation",
+    response_model=InterviewEvaluation,
+    responses={**NOT_FOUND, **NOT_SUBMITTED},
+    summary="Retrieve the AI coach evaluation (rule-based if Gemini is unavailable)",
+)
+def get_evaluation(session_id: str, db: Session = Depends(get_db)) -> InterviewEvaluation:
+    return evaluation_service.get_evaluation(db, session_id)

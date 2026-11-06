@@ -12,7 +12,7 @@ export function RoadmapStrip() {
           Coming next
         </Badge>
         <p className="text-sm text-slate-700">
-          AI-generated questions, a coding challenge module, and voice mock interviews are on the roadmap.
+          A coding challenge module and voice mock interviews are on the roadmap.
         </p>
       </div>
     </GlassPanel>

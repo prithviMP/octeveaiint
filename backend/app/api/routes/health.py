@@ -19,11 +19,13 @@ def health(db: Session = Depends(get_db)) -> JSONResponse:
         database = "unavailable"
 
     healthy = database == "ok"
+    settings = get_settings()
     return JSONResponse(
         status_code=200 if healthy else 503,
         content={
             "status": "ok" if healthy else "degraded",
             "database": database,
-            "environment": get_settings().environment,
+            "environment": settings.environment,
+            "ai": "enabled" if settings.ai_enabled else "disabled",
         },
     )

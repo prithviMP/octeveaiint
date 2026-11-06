@@ -5,8 +5,9 @@ from pathlib import Path
 from pydantic import BaseModel, Field, TypeAdapter, model_validator
 from sqlalchemy.orm import Session
 
-from app.core.enums import AnswerOption, Difficulty
+from app.core.enums import AnswerOption, Difficulty, QuestionSource
 from app.models import Question, Subject
+from app.models.question import AI_QUESTION_ID_START
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +21,7 @@ class SubjectSeed(BaseModel):
 
 
 class QuestionSeed(BaseModel):
-    id: int = Field(gt=0)
+    id: int = Field(gt=0, lt=AI_QUESTION_ID_START)
     subject: str
     topic: str
     difficulty: Difficulty
@@ -82,6 +83,7 @@ def seed_database(db: Session) -> None:
                 option_d=q.options[3],
                 correct_answer=q.correct_answer.value,
                 explanation=q.explanation,
+                source=QuestionSource.BANK.value,
             )
         )
 
