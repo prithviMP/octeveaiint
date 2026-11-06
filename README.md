@@ -4,6 +4,10 @@ A web platform for practicing technical interview MCQs. Students enter their nam
 
 See [docs/PRD.md](docs/PRD.md) for the full product requirements.
 
+## Student guide
+
+New to this? [From Idea to Live App with Cursor](docs/student-guide/Cursor-Idea-to-Live-App-Guide.pdf) walks through how this app was planned, built, and deployed, step by step. The PDF opens directly on GitHub. For the web version, download the repo and open `docs/student-guide/index.html` in a browser.
+
 ## Repository layout
 
 ```text
@@ -11,6 +15,7 @@ See [docs/PRD.md](docs/PRD.md) for the full product requirements.
 ├── backend/      FastAPI + SQLAlchemy + SQLite API (deployed on Render)
 ├── frontend/     Next.js app (deployed on Vercel)
 ├── docs/PRD.md   Product requirements
+├── docs/student-guide/  Beginner's guide (PDF and HTML)
 └── render.yaml   Render blueprint for the backend
 ```
 
