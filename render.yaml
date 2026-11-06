@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: ai-interview-coach-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: ENVIRONMENT
+        value: production
+      # Comma-separated list of allowed frontend origins, e.g. https://octeveaiint.vercel.app
+      - key: CORS_ORIGINS
+        sync: false
+      # Optional regex for Vercel preview deployments, e.g. https://octeveaiint-.*\.vercel\.app
+      - key: CORS_ORIGIN_REGEX
+        sync: false

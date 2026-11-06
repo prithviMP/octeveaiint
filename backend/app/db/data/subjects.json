@@ -1,0 +1,11 @@
+[
+  { "code": "DSA", "name": "Data Structures & Algorithms", "category": "Data Structures & Algorithms" },
+  { "code": "LLD", "name": "Low-Level Design (LLD)", "category": "System Design" },
+  { "code": "HLD", "name": "High-Level Design (HLD)", "category": "System Design" },
+  { "code": "PYTHON", "name": "Python", "category": "Programming Languages" },
+  { "code": "JAVA", "name": "Java", "category": "Programming Languages" },
+  { "code": "JAVASCRIPT", "name": "JavaScript", "category": "Programming Languages" },
+  { "code": "REACT", "name": "React.js", "category": "Frameworks" },
+  { "code": "NEXTJS", "name": "Next.js", "category": "Frameworks" },
+  { "code": "FASTAPI", "name": "FastAPI", "category": "Frameworks" }
+]
