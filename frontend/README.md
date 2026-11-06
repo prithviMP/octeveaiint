@@ -1,10 +1,10 @@
 # AI Interview Coach - Frontend
 
-Next.js (App Router) + TypeScript + Tailwind CSS. Deployed on Vercel.
-
-This is a placeholder. Pages and components will be built once the UI designs are finalized. The folder layout follows the PRD (section 11.1): `app/`, `components/{ui,interview,subjects,results}`, `services/`, `types/`, `hooks/`.
+Next.js 16 (App Router, Cache Components) + TypeScript + Tailwind CSS v4, in a light glassmorphism style. Deployed on Vercel.
 
 ## Setup
+
+Requires Node 22 (see `.nvmrc`).
 
 ```bash
 npm install
@@ -17,3 +17,39 @@ npm run dev
 | `NEXT_PUBLIC_API_URL` | Base URL of the FastAPI backend, e.g. `http://localhost:8000` |
 
 See [../backend/README.md](../backend/README.md) for the API reference.
+
+## Routes
+
+| Route | Purpose |
+|---|---|
+| `/` | Landing page: hero, live subject grid, how it works, quick start |
+| `/user-details` | Setup step 1: candidate name |
+| `/subjects` | Setup step 2: pick one or more subjects |
+| `/configure` | Setup step 3: question count and difficulty, then start the interview |
+| `/interview/[id]` | One question at a time, navigator, submit confirmation |
+| `/results/[id]` | Score ring, totals, per-subject breakdown, retry |
+| `/review/[id]` | Every question with your answer, the correct answer, and the explanation |
+
+The setup draft (name, subjects, count, difficulty) and in-progress answers are kept in `localStorage`, so a refresh doesn't lose progress. The header status pill and the cold-start banner reflect the real `GET /api/health` result.
+
+## Structure
+
+```
+app/                 routes (thin pages that compose feature components)
+components/
+  ui/                reusable primitives: GlassPanel, Button, Badge, TextField, SegmentedControl,
+                     RangeStepper, SelectableCard, Modal, ProgressBar, SectionHeader, Skeleton, ...
+  layout/            site chrome: SiteHeader, SiteFooter, HealthPill, ColdStartBanner,
+                     WizardStepper, WizardActionBar
+  landing/           landing page sections
+  setup/             the three setup steps
+  subjects/          SubjectCard, SubjectCategorySection
+  interview/         OptionList, QuestionCard, QuestionNavigator, SubmitConfirmModal, InterviewView
+  results/           ScoreRing, StatTile, SubjectBreakdownList, ReviewItemCard, ResultsView, ReviewView
+hooks/               useAsync, useSubjects, useHealth, useInterviewDraft, useInterviewAnswers
+services/api.ts      typed fetch client for the backend
+types/api.ts         TypeScript mirrors of the backend schemas
+lib/                 cn, formatting helpers, subject metadata, localStorage-backed store
+```
+
+Glass surfaces come from four Tailwind utilities defined in `app/globals.css`: `glass-deck`, `glass-card`, `glass-capsule`, and `glass-inset`.
